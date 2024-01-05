@@ -1,8 +1,36 @@
-# ex3: Declarative DSL for structured data extraction from HTML based on XPath
+# hexq: Yet Another 'jq for HTML'
+hexq is a tool designed to provide a jq-like experience for HTML content. It is declarative in nature, allowing users to specify what they want to extract from HTML documents using a syntax similar to jq. hexq can be used both as a CLI tool and as a Python library. As a Python library, it is particularly useful for web scraping, enabling users to easily extract structured data from HTML.
 
-## Usage
+## Usage as a CLI tool
+```
+$ cat << 'EOF' | hexq '`//div[@class="product"]` / {name: `.//h2[@class="name"]`.text}'
+<body>
+    <div class="product">
+      <h2 class="name">Widget A</h2>
+      <p class="price">$10</p>
+      <ul class="features"><li>Durable</li><li>Lightweight</li></ul>
+    </div>
+    <div class="product">
+      <h2 class="name">Gadget B</h2>
+      <p class="price">$20</p>
+      <ul class="features"><li>Compact</li><li>Energy Efficient</li></ul>
+    </div>
+</body>
+EOF
+```
+
+Output:
+
+```
+[
+  {"name": "Widget A"},
+  {"name": "Gadget B"}
+]
+```
+
+## Usage as a library
 ```python
-from ex3 import extract, xpath
+from hexq import extract, xpath
 import lxml.etree
 tree = lxml.etree.HTML('''<body>
     <div class="product">
