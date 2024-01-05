@@ -100,7 +100,7 @@ def evaluate(expr: Expr):
         if isinstance(e, xpath_map_pred):
             return [_evaluate(e.pred, t1) for t1 in t.xpath(e.xpath)]
         elif isinstance(e, xpath_text):
-            return t.xpath(e.xpath)[0].text
+            return ''.join(s for e in t.xpath(e.xpath) for s in e.itertext())
         elif isinstance(e, dict):
             return {k: _evaluate(v, t) for k, v in e.items()}
         raise TypeError(f'{type(e)} is not a value')
@@ -136,9 +136,9 @@ def main():
     out = extract(expr, tree)
     if args.output:
         with open(args.output, 'wb') as fp:
-            fp.write(json.dumps(out, indent=2).encode('utf-8'))
+            fp.write(json.dumps(out, indent=2, ensure_ascii=False).encode('utf-8'))
     else:
-        print(json.dumps(out, indent=2))
+        print(json.dumps(out, indent=2, ensure_ascii=False))
 
 if __name__ == '__main__':
     main()
