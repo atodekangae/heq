@@ -30,7 +30,7 @@ class xpath_map_pred:
     xpath: str
     pred: T.Any
 
-Expr = T.Union[xpath, xpath_text, xpath_map_pred, dict[str, 'Expr']]
+Expr = T.Union[xpath, xpath_text, xpath_map_pred, T.Dict[str, 'Expr']]
 
 if Grammar is not None:
     from parsimonious.nodes import NodeVisitor
