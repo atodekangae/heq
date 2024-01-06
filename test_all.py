@@ -2,6 +2,8 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from heq import parse, extract, xpath, text
+import re
+import json
 import pytest
 import lxml.etree
 
@@ -76,6 +78,23 @@ def test_extract():
         }
     ]
 
+    assert (
+        extract(
+            text,
+            lxml.etree.HTML('<span>a</span><div>b<span>c</span>d</div>')
+        )
+        ==
+        'abcd'
+    )
+    assert (
+        extract(
+            xpath('//span') / text,
+            lxml.etree.HTML('<span>a</span><div>b<span>c</span>d</div>')
+        )
+        ==
+        ['a', 'c']
+    )
+
 def test_parse():
     assert parse('`x` / {}') == xpath('x') / {}
     assert parse('text') == text
@@ -104,3 +123,37 @@ def test_parse():
             }
         }
     )
+    assert (
+        parse('''
+        `//div[@class='product']` / {
+            name: `.//h2[@class='name']`.text,
+            price: `.//p[@class='price']`.text,
+            features: `.//li` / text
+        }
+        ''') ==
+        xpath("//div[@class='product']") / {
+            'name': xpath(".//h2[@class='name']").text,
+            'price': xpath(".//p[@class='price']").text,
+            'features': xpath(".//li") / text
+        }
+    )
+
+def test_readme_examples():
+    readme = (Path(__file__).parent / 'README.md').read_text()
+    target_html_pat = re.compile(r'''### Target HTML
+```html
+(.+?)
+```''', re.DOTALL)
+    test_pair_pat = re.compile(r'''# Example(?:\s+\d+)?
+```
+(.+?)
+```\s+evaluates to:\s+```
+(.+?)
+```''', re.DOTALL)
+
+    target_html = target_html_pat.search(readme).groups()[0]
+    tree = lxml.etree.HTML(target_html)
+    for m in test_pair_pat.finditer(readme):
+        expr, expected_json = m.groups()
+        expected = json.loads(expected_json)
+        assert extract(parse(expr), tree) == expected

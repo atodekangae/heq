@@ -104,7 +104,7 @@ if Grammar is not None:
         def generic_visit(self, node, visited_children):
             return visited_children or node
 
-    def parse(s: str):
+    def parse(s: str) -> Expr:
         return ExNodeVisitor().visit(grammar.parse(s))
 
 def evaluate(expr: Expr):
@@ -122,7 +122,7 @@ def evaluate(expr: Expr):
         raise TypeError(f'{type(e)} is not a value; given: {e}')
     return _evaluate1
 
-def extract(expr, tree):
+def extract(expr: Expr, tree: 'lxml.etree._Element'):
     return evaluate(expr)(tree)
 
 def main():
@@ -130,13 +130,15 @@ def main():
     import json
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--file', '-f')
-    parser.add_argument('--output', '-o')
-    parser.add_argument('--input', '-i')
-    parser.add_argument('EXPR', nargs='?')
+    parser.add_argument('--file', '-f', help='script source file')
+    parser.add_argument('--output', '-o', help='output file')
+    parser.add_argument('--input', '-i', help='input file (stdin is used if not given)')
+    parser.add_argument('EXPR', nargs='?', help='script')
     args = parser.parse_args()
     if bool(args.file) ==  bool(args.EXPR):
-        raise Exception('Exactly one of --file and EXPR must be given')
+        parser.print_help()
+        print('Exactly one of --file and EXPR must be given', file=sys.stderr)
+        sys.exit(1)
     if args.file:
         with open(args.file, 'rb') as fp:
             source = fp.read().decode('utf-8')
