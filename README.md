@@ -114,12 +114,14 @@ Output:
 <S> ::= <expr>
 <expr> ::= <xpath_lit> '/' <term>
          | <term>
-<term> ::= <dict_lit> | <dottext> | <attr_lit> | <filter>
+<term> ::= <dict_lit> | <dottext> | <atattr> | <attr_lit> | <filter>
 <filter> ::= 'text'
 <dict_lit> ::= '{' ((<dict_field_value> ',')* <dict_field_value>)? '}'
 <dict_field_value> ::= <dict_field> ':' <expr>
 <xpath_lit> ::= <backtick_lit>
 <dottext> ::= <xpath_lit> '.text'
+<atattr> ::= <xpath_lit> '@' <ident_with_hyphen>
+<attr_lit> ::= '@' <ident_with_hyphen>
 ```
 
 heq has the concept of *context DOM tree*. This is the DOM tree against which XPath expressions are evaluated. It changes as the `/` operator is applied, to each of the elements.
