@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
-from heq import xpath, parse, extract
+from heq import parse, extract, xpath, text
 import pytest
 import lxml.etree
 
@@ -48,17 +48,38 @@ def test_extract():
             'name': 'Gadget B',
             'price': '$20',
             'features': [
-                {'feature': 'Compact'},
-                {'feature': 'Energy Efficient'}
+                {'feature': 'Compact'}, {'feature': 'Energy Efficient'}
+            ]
+        }
+    ]
+    assert extract(
+        xpath("//div[@class='product']") / {
+            'name': xpath(".//h2[@class='name']").text,
+            'price': xpath(".//p[@class='price']").text,
+            'features': xpath(".//li") / text
+        },
+        tree
+    ) == [
+        {
+            'name': 'Widget A',
+            'price': '$10',
+            'features': [
+                'Durable', 'Lightweight'
+            ]
+        },
+        {
+            'name': 'Gadget B',
+            'price': '$20',
+            'features': [
+                'Compact', 'Energy Efficient'
             ]
         }
     ]
 
 def test_parse():
-    assert (
-        parse('`x` / {}') ==
-        xpath('x') / {}
-    )
+    assert parse('`x` / {}') == xpath('x') / {}
+    assert parse('text') == text
+    assert parse('`x` / text') == xpath('x') / text
     assert (
         parse('`//div[@class="product"]` / {name: `.//h2[@class="name"]`.text}') ==
         xpath('//div[@class="product"]') / {

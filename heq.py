@@ -30,6 +30,11 @@ class xpath_map_pred:
     xpath: str
     pred: T.Any
 
+@dataclass(frozen=True)
+class unary_func:
+    name: str
+text = unary_func('text')
+
 Expr = T.Union[xpath, xpath_text, xpath_map_pred, T.Dict[str, 'Expr']]
 
 if Grammar is not None:
@@ -37,7 +42,8 @@ if Grammar is not None:
 
     grammar = Grammar(r'''
         s = expr _
-        expr = (xpath_lit _ "/")? (dict_lit / dottext)
+        expr = (xpath_lit _ "/")? (dict_lit / dottext / unary_func)
+        unary_func = _ ident
         dict_lit = _ "{" ((dict_field_value _ "," _ !"}")* dict_field_value _ ("," _)?)? "}"
         dict_field_value = dict_field _ ":" expr
         dict_field = _ ~r"[_a-zA-Z][_0-9a-zA-Z]*"
@@ -46,6 +52,7 @@ if Grammar is not None:
         single_quote_lit = "'" (~r"[^\\']+" / "\\'" / "\\\\")+ "'"
         double_quote_lit = '"' (~r'[^\\"]+' / '\\"' / "\\\\")+ '"'
         dottext = xpath_lit _ ".text"
+        ident = ~r"[_a-zA-Z][_0-9a-zA-Z]+"
         _ = ws*
         ws = ~r"\s+"
     ''')
@@ -60,6 +67,10 @@ if Grammar is not None:
             if isinstance(maybe_xpath, list):
                 return maybe_xpath[0][0] / leaf[0]
             return leaf[0]
+
+        def visit_unary_func(self, node, visited_children):
+            _, ident = visited_children
+            return unary_func(ident)
 
         def visit_dict_lit(self, node, visited_children):
             _, _, ns, _ = visited_children
@@ -87,6 +98,9 @@ if Grammar is not None:
         def visit_backtick_lit(self, node, visited_children):
             return xpath(''.join({'\\`': '`', '\\\\': '\\'}.get(n.text, n.text) for n in node.children[1:-1]))
 
+        def visit_ident(self, node, visited_children):
+            return node.text
+
         def generic_visit(self, node, visited_children):
             return visited_children or node
 
@@ -100,10 +114,12 @@ def evaluate(expr: Expr):
         if isinstance(e, xpath_map_pred):
             return [_evaluate(e.pred, t1) for t1 in t.xpath(e.xpath)]
         elif isinstance(e, xpath_text):
-            return ''.join(s for e in t.xpath(e.xpath) for s in e.itertext())
+            return ''.join(s for t1 in t.xpath(e.xpath) for s in t1.itertext())
         elif isinstance(e, dict):
             return {k: _evaluate(v, t) for k, v in e.items()}
-        raise TypeError(f'{type(e)} is not a value')
+        elif isinstance(e, unary_func) and e.name == 'text':
+            return ''.join(s for s in t.itertext())
+        raise TypeError(f'{type(e)} is not a value; given: {e}')
     return _evaluate1
 
 def extract(expr, tree):
