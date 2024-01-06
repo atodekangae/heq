@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
-from heq import parse, extract, xpath, text
+from heq import parse, extract, xpath, text, attr
 import re
 import json
 import pytest
@@ -94,6 +94,44 @@ def test_extract():
         ==
         ['a', 'c']
     )
+    assert (
+        extract(
+            xpath('//a') / attr('href'),
+            lxml.etree.HTML('<a href="/link"></a>')
+        )
+        ==
+        ['/link']
+    )
+    assert (
+        extract(
+            xpath('//ul//a') / attr('href'),
+            lxml.etree.HTML('''
+              <a href="/link_a">link a</a>
+              <a href="/link_b">link b</a>
+              <ul>
+                <li><a href="/link1">link 1</a></li>
+                <li><a href="/link2">link 2</a></li>
+              </ul>
+            ''')
+        )
+        ==
+        ['/link1', '/link2']
+    )
+    assert (
+        extract(
+            xpath('//li') / (xpath('.//a') @ 'href'),
+            lxml.etree.HTML('''
+              <a href="/link_a">link a</a>
+              <a href="/link_b">link b</a>
+              <ul>
+                <li><a href="/link1">link 1</a></li>
+                <li><a href="/link2">link 2</a></li>
+              </ul>
+            ''')
+        )
+        ==
+        ['/link1', '/link2']
+    )
 
 def test_parse():
     assert parse('`x` / {}') == xpath('x') / {}
@@ -123,20 +161,12 @@ def test_parse():
             }
         }
     )
-    assert (
-        parse('''
-        `//div[@class='product']` / {
-            name: `.//h2[@class='name']`.text,
-            price: `.//p[@class='price']`.text,
-            features: `.//li` / text
-        }
-        ''') ==
-        xpath("//div[@class='product']") / {
-            'name': xpath(".//h2[@class='name']").text,
-            'price': xpath(".//p[@class='price']").text,
-            'features': xpath(".//li") / text
-        }
-    )
+    assert parse('@name') == attr('name')
+    assert parse('@name-with-hyphen') == attr('name-with-hyphen')
+    assert parse('`//input` / @name') == xpath('//input') / attr('name')
+    assert parse('`//input` / {name: @name}') == xpath('//input') / {'name': attr('name')}
+    assert parse('`//input`@name') == xpath('//input') @ 'name'
+    assert parse('`//input` @name') == xpath('//input') @ 'name'
 
 def test_readme_examples():
     readme = (Path(__file__).parent / 'README.md').read_text()
@@ -147,13 +177,16 @@ def test_readme_examples():
     test_pair_pat = re.compile(r'''# Example(?:\s+\d+)?
 ```
 (.+?)
-```\s+evaluates to:\s+```
+```\s+evaluates to:\s+```(?:json)?
 (.+?)
 ```''', re.DOTALL)
 
     target_html = target_html_pat.search(readme).groups()[0]
     tree = lxml.etree.HTML(target_html)
+    count = 0
     for m in test_pair_pat.finditer(readme):
+        count += 1
         expr, expected_json = m.groups()
         expected = json.loads(expected_json)
         assert extract(parse(expr), tree) == expected
+    assert count > 0

@@ -21,9 +21,17 @@ class xpath:
     def __truediv__(self, other):
         return xpath_map_pred(self.xpath, other)
 
+    def __matmul__(self, attr):
+        return xpath_attr(self.xpath, attr)
+
 @dataclass(frozen=True)
 class xpath_text:
     xpath: str
+
+@dataclass(frozen=True)
+class xpath_attr:
+    xpath: str
+    attr: str
 
 @dataclass(frozen=True)
 class xpath_map_pred:
@@ -35,14 +43,18 @@ class unary_func:
     name: str
 text = unary_func('text')
 
-Expr = T.Union[xpath, xpath_text, xpath_map_pred, T.Dict[str, 'Expr']]
+@dataclass(frozen=True)
+class attr:
+    name: str
+
+Expr = T.Union[xpath, xpath_text, xpath_map_pred, unary_func, attr, T.Dict[str, 'Expr']]
 
 if Grammar is not None:
     from parsimonious.nodes import NodeVisitor
 
     grammar = Grammar(r'''
         s = expr _
-        expr = (xpath_lit _ "/")? (dict_lit / dottext / unary_func)
+        expr = (xpath_lit _ "/")? (dict_lit / dottext / atattr / unary_func / attr_lit)
         unary_func = _ ident
         dict_lit = _ "{" ((dict_field_value _ "," _ !"}")* dict_field_value _ ("," _)?)? "}"
         dict_field_value = dict_field _ ":" expr
@@ -52,6 +64,8 @@ if Grammar is not None:
         single_quote_lit = "'" (~r"[^\\']+" / "\\'" / "\\\\")+ "'"
         double_quote_lit = '"' (~r'[^\\"]+' / '\\"' / "\\\\")+ '"'
         dottext = xpath_lit _ ".text"
+        atattr = xpath_lit attr_lit
+        attr_lit = _ "@" ~r"[-_0-9a-zA-Z]+"
         ident = ~r"[_a-zA-Z][_0-9a-zA-Z]+"
         _ = ws*
         ws = ~r"\s+"
@@ -92,6 +106,10 @@ if Grammar is not None:
         def visit_dottext(self, node, visited_children):
             return visited_children[0].text
 
+        def visit_atattr(self, node, visited_children):
+            xp, at = visited_children
+            return xp @ at.name
+
         def visit_xpath_lit(self, node, visited_children):
             return visited_children[-1][0]
 
@@ -100,6 +118,9 @@ if Grammar is not None:
 
         def visit_ident(self, node, visited_children):
             return node.text
+
+        def visit_attr_lit(self, node, visited_children):
+            return attr(node.children[-1].text)
 
         def generic_visit(self, node, visited_children):
             return visited_children or node
@@ -115,14 +136,23 @@ def evaluate(expr: Expr):
             return [_evaluate(e.pred, t1) for t1 in t.xpath(e.xpath)]
         elif isinstance(e, xpath_text):
             return ''.join(s for t1 in t.xpath(e.xpath) for s in t1.itertext())
+        elif isinstance(e, xpath_attr):
+            return t.xpath(e.xpath)[0].attrib[e.attr]
         elif isinstance(e, dict):
             return {k: _evaluate(v, t) for k, v in e.items()}
         elif isinstance(e, unary_func) and e.name == 'text':
             return ''.join(s for s in t.itertext())
+        elif isinstance(e, attr):
+            return t.attrib[e.name]
         raise TypeError(f'{type(e)} is not a value; given: {e}')
     return _evaluate1
 
-def extract(expr: Expr, tree: 'lxml.etree._Element'):
+def extract(expr: Expr, tree_or_html: T.Union[str, 'lxml.etree._Element']):
+    if isinstance(tree_or_html, str):
+        import lxml.etree
+        tree = lxml.etree.HTML(tree_or_html)
+    else:
+        tree = tree_or_html
     return evaluate(expr)(tree)
 
 def main():
