@@ -1,6 +1,11 @@
 # heq: Yet Another 'jq for HTML'
 **heq** is a command-line tool for extracting structured data from HTML using concise expressions, akin to jq. Additionally, heq serves as a Python library, facilitating the efficient scraping of HTML content through its jq-inspired DSL based on XPath.
 
+## Installation
+```
+pip install heq
+```
+
 ## Usage as a command-line tool
 ```
 $ cat << 'EOF' | heq '`//div[@class="product"]` / {name: `.//h2[@class="name"]`.text}'
@@ -35,7 +40,7 @@ $ cat expr.heq
 `//div[@class="product"]` / {
     name: `.//h2[@class="name"]`.text,
     price: `.//p[@price="name"]`.text,
-    features': `.//li` / text
+    features: `.//li` / text
 }
 $ cat << 'EOF' | heq -f expr.heq
 (same as above)

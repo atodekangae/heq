@@ -4,9 +4,12 @@ from pathlib import Path
 this_directory = Path(__file__).parent
 long_description = (this_directory / 'README.md').read_text()
 
+repo_url = 'https://github.com/atodekangae/heq'
+
 setup(
     name='heq',
     version='0.0.1',
+    url=repo_url,
     description="Yet another 'jq for HTML'",
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -36,4 +39,3 @@ setup(
         'Environment :: Console'
     ]
 )
-
