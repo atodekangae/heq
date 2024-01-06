@@ -1,9 +1,9 @@
-# hexq: Yet Another 'jq for HTML'
-hexq is a tool designed to provide a jq-like experience for HTML content. It is declarative in nature, allowing users to specify what they want to extract from HTML documents using a syntax similar to jq. hexq can be used both as a CLI tool and as a Python library. As a Python library, it is particularly useful for web scraping, enabling users to easily extract structured data from HTML.
+# heq: Yet Another 'jq for HTML'
+heq is a tool designed to provide a jq-like experience for HTML content. It is declarative in nature, allowing users to specify what they want to extract from HTML documents using a syntax similar to jq. heq can be used both as a CLI tool and as a Python library. As a Python library, it is particularly useful for web scraping, enabling users to easily extract structured data from HTML.
 
 ## Usage as a CLI tool
 ```
-$ cat << 'EOF' | hexq '`//div[@class="product"]` / {name: `.//h2[@class="name"]`.text}'
+$ cat << 'EOF' | heq '`//div[@class="product"]` / {name: `.//h2[@class="name"]`.text}'
 <body>
     <div class="product">
       <h2 class="name">Widget A</h2>
@@ -30,7 +30,7 @@ Output:
 
 ## Usage as a library
 ```python
-from hexq import extract, xpath
+from heq import extract, xpath
 import lxml.etree
 tree = lxml.etree.HTML('''<body>
     <div class="product">
