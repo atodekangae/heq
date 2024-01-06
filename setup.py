@@ -8,7 +8,7 @@ repo_url = 'https://github.com/atodekangae/heq'
 
 setup(
     name='heq',
-    version='0.0.1',
+    version='0.0.2',
     url=repo_url,
     description="Yet another 'jq for HTML'",
     long_description=long_description,
@@ -30,11 +30,13 @@ setup(
         ],
     },
     classifiers=[
+        'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.12',
+        'Operating System :: OS Independent',
         'Topic :: Text Processing :: Markup :: HTML',
         'Environment :: Console'
     ]
