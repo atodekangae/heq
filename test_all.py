@@ -132,6 +132,22 @@ def test_extract():
         ==
         ['/link1', '/link2']
     )
+    assert (
+        extract(
+            xpath('//a') / attr('nonexistent'),
+            lxml.etree.HTML('<a href="/link"></a>')
+        )
+        ==
+        ['']
+    )
+    assert (
+        extract(
+            xpath('//a') @ 'nonexistent',
+            lxml.etree.HTML('<a href="/link"></a>')
+        )
+        ==
+        ''
+    )
 
 def test_parse():
     assert parse('`x` / {}') == xpath('x') / {}

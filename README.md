@@ -1,10 +1,20 @@
 # heq: Yet Another 'jq for HTML'
-**heq** is a command-line tool for extracting structured data from HTML using concise expressions, akin to jq. Additionally, heq serves as a Python library, facilitating the efficient scraping of HTML content through its jq-inspired DSL based on XPath.
+**heq** is a command-line tool for extracting structured data from HTML using concise expressions, akin to `jq`. Additionally, heq serves as a Python library, facilitating the efficient scraping of HTML content through its jq-inspired DSL based on XPath.
+
+<!--
+## Goal and Non-Goals
+heq is not intended to replicate `jq`'s full functionality for HTML. The rationale is simple: once HTML is converted to JSON, users can utilize the comprehensive features of any existing tool operating on JSON -- most notably, `jq` -- for advanced JSON operations. Therefore, `heq` focuses on offering a way to efficiently transform HTML into JSON, with its jq-inspired DSL that leverages XPath.
+-->
 
 ## Installation
 ```sh
 pip install heq
 ```
+
+The following dependencies will be automatically installed if not present:
+
+ * lxml
+ * parsimonious
 
 ## Usage as a command-line tool
 ```console
@@ -72,8 +82,8 @@ Output:
 ## Usage as a library
 ```python
 from heq import extract, xpath
-import lxml.etree
-tree = lxml.etree.HTML('''<body>
+
+html = '''<body>
     <div class="product">
       <h2 class="name">Widget A</h2>
       <p class="price">$10</p>
@@ -84,7 +94,7 @@ tree = lxml.etree.HTML('''<body>
       <p class="price">$20</p>
       <ul class="features"><li>Compact</li><li>Energy Efficient</li></ul>
     </div>
-</body>''')
+</body>'''
 
 expr = xpath("//div[@class='product']") / {
     'name': xpath(".//h2[@class='name']").text,
@@ -94,7 +104,7 @@ expr = xpath("//div[@class='product']") / {
     }
 }
 
-print(extract(expr, tree))
+print(extract(expr, html))
 ```
 
 Output:
@@ -114,17 +124,19 @@ Output:
 <S> ::= <expr>
 <expr> ::= <xpath_lit> '/' <term>
          | <term>
-<term> ::= <dict_lit> | <dottext> | <atattr> | <attr_lit> | <filter>
-<filter> ::= 'text'
+<term> ::= <dict_lit> | <dottext> | <atattr> | <filter>
+<filter> ::= 'text' | <attr_lit>
 <dict_lit> ::= '{' ((<dict_field_value> ',')* <dict_field_value>)? '}'
 <dict_field_value> ::= <dict_field> ':' <expr>
 <xpath_lit> ::= <backtick_lit>
 <dottext> ::= <xpath_lit> '.text'
-<atattr> ::= <xpath_lit> '@' <ident_with_hyphen>
+<atattr> ::= <xpath_lit> <attr_lit>
 <attr_lit> ::= '@' <ident_with_hyphen>
 ```
 
-heq has the concept of *context DOM tree*. This is the DOM tree against which XPath expressions are evaluated. It changes as the `/` operator is applied, to each of the elements.
+heq has the concept of *context DOM tree*. This is the DOM tree against which XPath expressions are evaluated. Initially, it is set to the root tree, and it changes as the `/` operator is applied, to each of the elements.
+
+Available syntactic constructs and their semantics are as follows:
 
  1. Value Forms
     * `{key: expression}`: Evaluates to a dictionary. `key` is a string without quotes and `expression` is an expression.

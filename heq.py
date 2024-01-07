@@ -137,13 +137,13 @@ def evaluate(expr: Expr):
         elif isinstance(e, xpath_text):
             return ''.join(s for t1 in t.xpath(e.xpath) for s in t1.itertext())
         elif isinstance(e, xpath_attr):
-            return t.xpath(e.xpath)[0].attrib[e.attr]
+            return t.xpath(e.xpath)[0].attrib.get(e.attr, '')
         elif isinstance(e, dict):
             return {k: _evaluate(v, t) for k, v in e.items()}
         elif isinstance(e, unary_func) and e.name == 'text':
             return ''.join(s for s in t.itertext())
         elif isinstance(e, attr):
-            return t.attrib[e.name]
+            return t.attrib.get(e.name, '')
         raise TypeError(f'{type(e)} is not a value; given: {e}')
     return _evaluate1
 
