@@ -18,7 +18,7 @@ setup(
     py_modules=['heq'],
     python_requires='>=3.8',
     install_requires=[
-        'lxml>=4',
+        'lxml[cssselect]>=4',
         'parsimonious>=0.10.0',
     ],
     extras_require={

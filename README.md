@@ -1,5 +1,5 @@
 # heq: Yet Another 'jq for HTML'
-**heq** is a command-line tool for extracting structured data from HTML using concise expressions, akin to `jq`. Additionally, heq serves as a Python library, facilitating the efficient scraping of HTML content through its jq-inspired DSL based on XPath.
+**heq** is a command-line tool for extracting structured data as JSON from HTML using concise expressions, akin to `jq`. Additionally, heq serves as a Python library, facilitating the efficient scraping of HTML content through its jq-inspired DSL based on XPath.
 
 <!--
 ## Goal and Non-Goals
@@ -11,17 +11,16 @@ heq is not intended to replicate `jq`'s full functionality for HTML. The rationa
 pip install heq
 ```
 
-The following dependencies will be automatically installed if not present:
+heq depends on the following Python packages:
 
  * lxml
  * parsimonious
 
 ## Usage as a command-line tool
 ```console
-$ cat << 'EOF' | heq '`//div[@class="product"]` / {name: `.//h2[@class="name"]`.text}'
+$ cat << 'EOF' | heq '$`div.product` / {name: $`h2.name`.text}'
 <body>
     <div id="header">Welcome to Our Store!</div>
-    <div id="announcement">Special Offer: 20% off on all products this week!</div>
     <div class="product">
       <h2 class="name">Widget A</h2>
       <p class="price">$10</p>
@@ -122,19 +121,21 @@ Output:
 ### Informal BNF-like Representation
 ```
 <S> ::= <expr>
-<expr> ::= <xpath_lit> '/' <term>
+<expr> ::= <selector_lit> '/' <term>
          | <term>
 <term> ::= <dict_lit> | <dottext> | <atattr> | <filter>
 <filter> ::= 'text' | <attr_lit>
 <dict_lit> ::= '{' ((<dict_field_value> ',')* <dict_field_value>)? '}'
 <dict_field_value> ::= <dict_field> ':' <expr>
+<dottext> ::= <selector_lit> '.text'
+<atattr> ::= <selector_lit> <attr_lit>
+<selector_lit> ::= <css_lit> / <xpath_lit>
+<css_lit> ::= '$' <backtick_lit>
 <xpath_lit> ::= <backtick_lit>
-<dottext> ::= <xpath_lit> '.text'
-<atattr> ::= <xpath_lit> <attr_lit>
 <attr_lit> ::= '@' <ident_with_hyphen>
 ```
 
-heq has the concept of *context DOM tree*. This is the DOM tree against which XPath expressions are evaluated. Initially, it is set to the root tree, and it changes as the `/` operator is applied, to each of the elements.
+heq has the concept of *context DOM tree*. This is the DOM tree against which XPath expressions or CSS selectors are evaluated. Initially, it is set to the root tree, and it changes as the `/` operator is applied, to each of the elements.
 
 Available syntactic constructs and their semantics are as follows:
 
@@ -142,17 +143,19 @@ Available syntactic constructs and their semantics are as follows:
     * `{key: expression}`: Evaluates to a dictionary. `key` is a string without quotes and `expression` is an expression.
     * `text`: Evaluates to a string representing the text content of the context DOM tree.
     * `@attr`: Evaluates to the value associated with the attribute `attr` of the context DOM tree.
-    * `` `<xpath>`.text ``: Evaluates to a string representing the text content of the element(s) selected by the specified XPath expression.
-    * `` `<xpath>`@attr ``: Evaluates to a string representing the value associated with the attribute `attr` of the first element selected by the specified XPath expression.
- 2. Mapping Against Query Results
-    * `` `<xpath>` / <value_form> ``: First, evaluates the XPath expression to obtain a list of elements. Then, for each element, the `value_form` is evaluated with the element as the new context DOM tree. The entire expression evaluates to an array.
+    * `<selector>.text`: Evaluates to a string representing the text content of the element(s) selected by the specified selector.
+    * `<selector>@attr`: Evaluates to a string representing the value associated with the attribute `attr` of the first element selected by the specified XPath expression.
+ 2. Selectors
+    * `` `<xpath>` ``: Selects elements by evaluating the XPath against the context DOM tree.
+    * `` $`<css_selector>` ``: Selects elements by evaluating the CSS selector against the context DOM tree.
+ 3. Mapping Against Query Results
+    * `<selector> / <value_form>`: First, evaluates the selector to obtain a list of elements. Then, for each element, the `value_form` is evaluated with the element as the new context DOM tree. The entire expression evaluates to an array.
 
 ## Examples
 ### Target HTML
 ```html
 <body>
     <div id="header">Welcome to Our Store!</div>
-    <div id="announcement">Special Offer: 20% off on all products this week!</div>
     <div class="product">
       <h2 class="name">Widget A</h2>
       <p class="price">$10</p>
@@ -209,6 +212,35 @@ evaluates to:
     price: `.//p[@class="price"]`.text,
     features: `.//li` / text,
     url: `.//a`@href
+}
+```
+
+evaluates to:
+
+```json
+[
+  {
+    "name": "Widget A",
+    "price": "$10",
+    "features": ["Durable", "Lightweight"],
+    "url": "/products/widget_a"
+  },
+  {
+    "name": "Gadget B",
+    "price": "$20",
+    "features": ["Compact", "Energy Efficient"],
+    "url": "/products/gadget_b"
+  }
+]
+```
+
+### Example 5
+```
+$`div.product` / {
+    name: $`h2.name`.text,
+    price: $`p.price`.text,
+    features: $`li` / text,
+    url: $`a`@href
 }
 ```
 

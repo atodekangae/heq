@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
-from heq import parse, extract, xpath, text, attr
+from heq import parse, extract, xpath, css, text, attr
 import re
 import json
 import pytest
@@ -77,6 +77,29 @@ def test_extract():
             ]
         }
     ]
+    assert extract(
+        css("div.product") / {
+            'name': css("h2.name").text,
+            'price': css("p.price").text,
+            'features': css("li") / text
+        },
+        tree
+    ) == [
+        {
+            'name': 'Widget A',
+            'price': '$10',
+            'features': [
+                'Durable', 'Lightweight'
+            ]
+        },
+        {
+            'name': 'Gadget B',
+            'price': '$20',
+            'features': [
+                'Compact', 'Energy Efficient'
+            ]
+        }
+    ]
 
     assert (
         extract(
@@ -89,6 +112,14 @@ def test_extract():
     assert (
         extract(
             xpath('//span') / text,
+            lxml.etree.HTML('<span>a</span><div>b<span>c</span>d</div>')
+        )
+        ==
+        ['a', 'c']
+    )
+    assert (
+        extract(
+            css('span') / text,
             lxml.etree.HTML('<span>a</span><div>b<span>c</span>d</div>')
         )
         ==
@@ -134,6 +165,21 @@ def test_extract():
     )
     assert (
         extract(
+            css('li') / (css('a') @ 'href'),
+            lxml.etree.HTML('''
+              <a href="/link_a">link a</a>
+              <a href="/link_b">link b</a>
+              <ul>
+                <li><a href="/link1">link 1</a></li>
+                <li><a href="/link2">link 2</a></li>
+              </ul>
+            ''')
+        )
+        ==
+        ['/link1', '/link2']
+    )
+    assert (
+        extract(
             xpath('//a') / attr('nonexistent'),
             lxml.etree.HTML('<a href="/link"></a>')
         )
@@ -147,6 +193,21 @@ def test_extract():
         )
         ==
         ''
+    )
+    assert (
+        extract(
+            css('ul a') / attr('href'),
+            lxml.etree.HTML('''
+              <a href="/link_a">link a</a>
+              <a href="/link_b">link b</a>
+              <ul>
+                <li><a href="/link1">link 1</a></li>
+                <li><a href="/link2">link 2</a></li>
+              </ul>
+            ''')
+        )
+        ==
+        ['/link1', '/link2']
     )
 
 def test_parse():
@@ -183,6 +244,10 @@ def test_parse():
     assert parse('`//input` / {name: @name}') == xpath('//input') / {'name': attr('name')}
     assert parse('`//input`@name') == xpath('//input') @ 'name'
     assert parse('`//input` @name') == xpath('//input') @ 'name'
+    assert parse('$`input` / @name') == css('input') / attr('name')
+    assert parse('$`input` / {name: @name}') == css('input') / {'name': attr('name')}
+    assert parse('$`input`@name') == css('input') @ 'name'
+    assert parse('$`input` @name') == css('input') @ 'name'
 
 def test_readme_examples():
     readme = (Path(__file__).parent / 'README.md').read_text()

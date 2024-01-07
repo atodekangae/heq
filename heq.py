@@ -16,26 +16,46 @@ class xpath:
 
     @property
     def text(self):
-        return xpath_text(self.xpath)
+        return sel_text(self)
 
     def __truediv__(self, other):
-        return xpath_map_pred(self.xpath, other)
+        return sel_map_pred(self, other)
 
     def __matmul__(self, attr):
-        return xpath_attr(self.xpath, attr)
+        return sel_attr(self, attr)
+
+    def select(self, tree):
+        return tree.xpath(self.xpath)
 
 @dataclass(frozen=True)
-class xpath_text:
-    xpath: str
+class css:
+    css: str
+
+    @property
+    def text(self):
+        return sel_text(self)
+
+    def __truediv__(self, other):
+        return sel_map_pred(self, other)
+
+    def __matmul__(self, attr):
+        return sel_attr(self, attr)
+
+    def select(self, tree):
+        return tree.cssselect(self.css)
 
 @dataclass(frozen=True)
-class xpath_attr:
-    xpath: str
+class sel_text:
+    sel: T.Union[xpath, css]
+
+@dataclass(frozen=True)
+class sel_attr:
+    sel: T.Union[xpath, css]
     attr: str
 
 @dataclass(frozen=True)
-class xpath_map_pred:
-    xpath: str
+class sel_map_pred:
+    sel: T.Union[xpath, css]
     pred: T.Any
 
 @dataclass(frozen=True)
@@ -47,24 +67,26 @@ text = unary_func('text')
 class attr:
     name: str
 
-Expr = T.Union[xpath, xpath_text, xpath_map_pred, unary_func, attr, T.Dict[str, 'Expr']]
+Expr = T.Union[xpath, css, sel_text, sel_map_pred, unary_func, attr, T.Dict[str, 'Expr']]
 
 if Grammar is not None:
     from parsimonious.nodes import NodeVisitor
 
     grammar = Grammar(r'''
         s = expr _
-        expr = (xpath_lit _ "/")? (dict_lit / dottext / atattr / unary_func / attr_lit)
+        expr = (selector_lit _ "/")? (dict_lit / dottext / atattr / unary_func / attr_lit)
         unary_func = _ ident
         dict_lit = _ "{" ((dict_field_value _ "," _ !"}")* dict_field_value _ ("," _)?)? "}"
         dict_field_value = dict_field _ ":" expr
         dict_field = _ ~r"[_a-zA-Z][_0-9a-zA-Z]*"
-        xpath_lit = _ (backtick_lit / ("xpath" _ (single_quote_lit / double_quote_lit)))
+        selector_lit = css_lit / xpath_lit
+        xpath_lit = _ backtick_lit
+        css_lit = _ "$" backtick_lit
         backtick_lit = "`" (~r"[^\\`]+" / "\\`" / "\\\\")+ "`"
         single_quote_lit = "'" (~r"[^\\']+" / "\\'" / "\\\\")+ "'"
         double_quote_lit = '"' (~r'[^\\"]+' / '\\"' / "\\\\")+ '"'
-        dottext = xpath_lit _ ".text"
-        atattr = xpath_lit attr_lit
+        dottext = selector_lit _ ".text"
+        atattr = selector_lit attr_lit
         attr_lit = _ "@" ~r"[-_0-9a-zA-Z]+"
         ident = ~r"[_a-zA-Z][_0-9a-zA-Z]+"
         _ = ws*
@@ -110,11 +132,20 @@ if Grammar is not None:
             xp, at = visited_children
             return xp @ at.name
 
+        def visit_selector_lit(self, node, visited_children):
+            sel, = visited_children
+            return sel
+
         def visit_xpath_lit(self, node, visited_children):
-            return visited_children[-1][0]
+            *_, lit = visited_children
+            return xpath(lit)
+
+        def visit_css_lit(self, node, visited_children):
+            *_, lit = visited_children
+            return css(lit)
 
         def visit_backtick_lit(self, node, visited_children):
-            return xpath(''.join({'\\`': '`', '\\\\': '\\'}.get(n.text, n.text) for n in node.children[1:-1]))
+            return ''.join({'\\`': '`', '\\\\': '\\'}.get(n.text, n.text) for n in node.children[1:-1])
 
         def visit_ident(self, node, visited_children):
             return node.text
@@ -132,12 +163,12 @@ def evaluate(expr: Expr):
     def _evaluate1(tree):
         return _evaluate(expr, tree)
     def _evaluate(e, t):
-        if isinstance(e, xpath_map_pred):
-            return [_evaluate(e.pred, t1) for t1 in t.xpath(e.xpath)]
-        elif isinstance(e, xpath_text):
-            return ''.join(s for t1 in t.xpath(e.xpath) for s in t1.itertext())
-        elif isinstance(e, xpath_attr):
-            return t.xpath(e.xpath)[0].attrib.get(e.attr, '')
+        if isinstance(e, sel_map_pred):
+            return [_evaluate(e.pred, t1) for t1 in e.sel.select(t)]
+        elif isinstance(e, sel_text):
+            return ''.join(s for t1 in e.sel.select(t) for s in t1.itertext())
+        elif isinstance(e, sel_attr):
+            return e.sel.select(t)[0].attrib.get(e.attr, '')
         elif isinstance(e, dict):
             return {k: _evaluate(v, t) for k, v in e.items()}
         elif isinstance(e, unary_func) and e.name == 'text':
