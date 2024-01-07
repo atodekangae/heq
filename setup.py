@@ -8,7 +8,7 @@ repo_url = 'https://github.com/atodekangae/heq'
 
 setup(
     name='heq',
-    version='0.0.2',
+    version='0.0.3',
     url=repo_url,
     description="Yet another 'jq for HTML'",
     long_description=long_description,
