@@ -1,5 +1,6 @@
 import sys
 import argparse
+import json
 from dataclasses import dataclass
 import typing as T
 
@@ -16,13 +17,13 @@ class xpath:
 
     @property
     def text(self):
-        return sel_text(self)
+        return dot_text(self)
 
     def __truediv__(self, other):
-        return sel_map_pred(self, other)
+        return map_pred(self, other)
 
     def __matmul__(self, attr):
-        return sel_attr(self, attr)
+        return at_attr(self, attr)
 
     def select(self, tree):
         return tree.xpath(self.xpath)
@@ -33,29 +34,29 @@ class css:
 
     @property
     def text(self):
-        return sel_text(self)
+        return dot_text(self)
 
     def __truediv__(self, other):
-        return sel_map_pred(self, other)
+        return map_pred(self, other)
 
     def __matmul__(self, attr):
-        return sel_attr(self, attr)
+        return at_attr(self, attr)
 
     def select(self, tree):
         return tree.cssselect(self.css)
 
 @dataclass(frozen=True)
-class sel_text:
-    sel: T.Union[xpath, css]
+class dot_text:
+    expr: 'Expr'
 
 @dataclass(frozen=True)
-class sel_attr:
-    sel: T.Union[xpath, css]
+class at_attr:
+    expr: 'Expr'
     attr: str
 
 @dataclass(frozen=True)
-class sel_map_pred:
-    sel: T.Union[xpath, css]
+class map_pred:
+    expr: 'Expr'
     pred: T.Any
 
 @dataclass(frozen=True)
@@ -67,7 +68,7 @@ text = unary_func('text')
 class attr:
     name: str
 
-Expr = T.Union[xpath, css, sel_text, sel_map_pred, unary_func, attr, T.Dict[str, 'Expr']]
+Expr = T.Union[xpath, css, dot_text, at_attr, map_pred, unary_func, attr, T.Dict[str, 'Expr']]
 
 if Grammar is not None:
     from parsimonious.nodes import NodeVisitor
@@ -159,19 +160,71 @@ if Grammar is not None:
     def parse(s: str) -> Expr:
         return ExNodeVisitor().visit(grammar.parse(s))
 
+MAX_LINE_WIDTH = 80
+def pretty_format_internal(obj, depth=0) -> T.List[str]:
+    import lxml.etree
+
+    if isinstance(obj, (int, float, str)) or obj is None:
+        return [json.dumps(obj)]
+    elif isinstance(obj, list):
+        if len(obj) == 0:
+            return ['[]']
+        elems = [pretty_format_internal(x, depth+1) for x in obj]
+        available = MAX_LINE_WIDTH - 2*depth
+        if all(len(e) == 1 for e in elems) and (sum(len(e[0]) for e in elems) + 2 * (len(obj) - 1) <= available):
+            return ['[{}]'.format(', '.join(e[0] for e in elems))]
+        result = []
+        for i, es in enumerate(elems):
+            for e in es[:-1]:
+                result.append('  ' + e)
+            if i != len(elems) - 1:
+                result.append('  '+es[-1]+',')
+            else:
+                result.append('  '+es[-1])
+        ('  ' + e for es in elems for e in es)
+        return ['[', *result, ']']
+    elif isinstance(obj, dict):
+        if len(obj) == 0:
+            return ['{}']
+        elems = {k: pretty_format_internal(v, depth+1) for k, v in obj.items()}
+        available = MAX_LINE_WIDTH - 2*depth
+        if all(len(e) == 1 for e in elems.values()) and (sum(4 + len(k) + len(es[0]) for k, es in elems.items()) + 2 * (len(obj) - 1) <= available):
+            # TODO: escape key
+            return ['{' + ', '.join('"{}": {}'.format(k, es[0]) for k, es in elems.items()) + '}']
+        result = []
+        for i, (k, es) in enumerate(elems.items()):
+            # TODO: escape key
+            result.append('  "{}": {}'.format(k, es[0]))
+            for e in es[1:-1]:
+                result.append('  ' + e)
+            if len(es) > 1:
+                if i != len(elems) - 1:
+                    result.append('  ' + es[-1] + ',')
+                else:
+                    result.append('  ' + es[-1])
+        return ['{', *result,'}']
+    elif isinstance(obj, lxml.etree._Element):
+        return lxml.etree.tostring(obj).decode('utf-8').splitlines()
+    raise TypeError()
+
+def pretty_format(obj):
+    return '\n'.join(pretty_format_internal(obj))
+
 def evaluate(expr: Expr):
     def _evaluate1(tree):
         return _evaluate(expr, tree)
     def _evaluate(e, t):
-        if isinstance(e, sel_map_pred):
-            return [_evaluate(e.pred, t1) for t1 in e.sel.select(t)]
-        elif isinstance(e, sel_text):
-            return ''.join(s for t1 in e.sel.select(t) for s in t1.itertext())
-        elif isinstance(e, sel_attr):
-            selected = e.sel.select(t)
+        if isinstance(e, map_pred):
+            return [_evaluate(e.pred, t1) for t1 in _evaluate(e.expr, t)]
+        elif isinstance(e, dot_text):
+            return ''.join(s for t1 in _evaluate(e.expr, t) for s in t1.itertext())
+        elif isinstance(e, at_attr):
+            selected = _evaluate(e.expr, t)
             if not selected:
                 return ''
             return selected[0].attrib.get(e.attr, '')
+        elif isinstance(e, (xpath, css)):
+            return e.select(t)
         elif isinstance(e, dict):
             return {k: _evaluate(v, t) for k, v in e.items()}
         elif isinstance(e, unary_func) and e.name == 'text':
@@ -191,12 +244,12 @@ def extract(expr: Expr, tree_or_html: T.Union[str, 'lxml.etree._Element']):
 
 def main():
     import lxml.etree
-    import json
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--file', '-f', help='script source file')
     parser.add_argument('--output', '-o', help='output file')
     parser.add_argument('--input', '-i', help='input file (stdin is used if not given)')
+    parser.add_argument('--debug', '-d', action='store_true')
     parser.add_argument('EXPR', nargs='?', help='script')
     args = parser.parse_args()
     if bool(args.file) ==  bool(args.EXPR):
@@ -216,11 +269,15 @@ def main():
         html = sys.stdin.read()
     tree = lxml.etree.HTML(html)
     out = extract(expr, tree)
+    if args.debug:
+        format_func = pretty_format
+    else:
+        format_func = lambda x: json.dumps(x, indent=2, ensure_ascii=False)
     if args.output:
         with open(args.output, 'wb') as fp:
-            fp.write(json.dumps(out, indent=2, ensure_ascii=False).encode('utf-8'))
+            fp.write(format_func(out).encode('utf-8'))
     else:
-        print(json.dumps(out, indent=2, ensure_ascii=False))
+        print(format_func(out))
 
 if __name__ == '__main__':
     main()
