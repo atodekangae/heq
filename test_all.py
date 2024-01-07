@@ -201,6 +201,14 @@ def test_extract(pass_tree):
     )
     assert (
         extract(
+            xpath('//nonexistent') @ 'nonexistent',
+            func('<a href="/link"></a>')
+        )
+        ==
+        ''
+    )
+    assert (
+        extract(
             css('ul a') / attr('href'),
             func('''
               <a href="/link_a">link a</a>
@@ -260,7 +268,7 @@ def test_readme_examples():
 ```html
 (.+?)
 ```''', re.DOTALL)
-    test_pair_pat = re.compile(r'''# Example(?:\s+\d+)?
+    test_pair_pat = re.compile(r'''# Example\s+(\d+)
 ```
 (.+?)
 ```\s+evaluates to:\s+```(?:json)?
@@ -269,9 +277,12 @@ def test_readme_examples():
 
     target_html = target_html_pat.search(readme).groups()[0]
     count = 0
+    last_num = None
     for m in test_pair_pat.finditer(readme):
         count += 1
-        expr, expected_json = m.groups()
+        num, expr, expected_json = m.groups()
         expected = json.loads(expected_json)
         assert extract(parse(expr), target_html) == expected
+        last_num = int(num)
     assert count > 0
+    assert count == last_num

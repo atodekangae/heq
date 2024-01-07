@@ -16,14 +16,12 @@ heq depends on the following Python packages:
  * lxml
  * parsimonious
 
-## Usage as a command-line tool
+## Usage as a Command-Line Tool
 ```
-$ curl -s https://news.ycombinator.com/ | heq '
-$`tr.athing` / {
+$ curl -s https://news.ycombinator.com/ | heq '$`tr.athing` / {
     title: `(./td[@class="title"]//a)[1]`.text,
     link: `(./td[@class="title"]//a)[1]`@href,
-}
-'
+}'
 
 [
   {
@@ -99,7 +97,7 @@ Output:
 ]
 ```
 
-## Usage as a library
+## Usage as a Library
 ```python
 from heq import extract, xpath
 
@@ -192,6 +190,8 @@ Available syntactic constructs and their semantics are as follows:
 </body>
 ```
 
+All example expressions below use the HTML above for their evaluations.
+
 ### Example 1
 ```
 { header: `//div[@id="header"]`.text }
@@ -203,6 +203,11 @@ evaluates to:
 { "header": "Welcome to Our Store!" }
 ```
 
+**Expression Breakdown:**
+
+ * `` `//div[@id="header"]` ``: This XPath literal selects the div element with `id="header"`.
+ * `.text`: This part extracts the text content of the selected element.
+ * The entire expression is wrapped in `{}` to create a JSON object with `"header"` as the key.
 
 ### Example 2
 ```
@@ -225,6 +230,12 @@ evaluates to:
 ```json
 ["/products/widget_a", "/products/gadget_b"]
 ```
+
+**Expression Breakdown:**
+
+ * `//div[@class="product"]`: Selects all div elements with `class="product"`.
+ * `/`: This operator is used to apply the following expression to each selected element.
+ * `` `.//a`@href ``: For each div, this extracts the href attribute of the first a element found within.
 
 ### Example 4
 ```
@@ -283,3 +294,5 @@ evaluates to:
   }
 ]
 ```
+
+This example performs the same extraction as the previous example, but using CSS selectors in place of XPath expressions.
