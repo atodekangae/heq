@@ -7,8 +7,13 @@ import json
 import pytest
 import lxml.etree
 
-def test_extract():
-    tree = lxml.etree.HTML('''
+@pytest.mark.parametrize('pass_tree', [True, False])
+def test_extract(pass_tree):
+    if pass_tree:
+        func = lxml.etree.HTML
+    else:
+        func = lambda x: x
+    tree = func('''
     <body>
       <div class="product">
         <h2 class="name">Widget A</h2>
@@ -104,7 +109,7 @@ def test_extract():
     assert (
         extract(
             text,
-            lxml.etree.HTML('<span>a</span><div>b<span>c</span>d</div>')
+            func('<span>a</span><div>b<span>c</span>d</div>')
         )
         ==
         'abcd'
@@ -112,7 +117,7 @@ def test_extract():
     assert (
         extract(
             xpath('//span') / text,
-            lxml.etree.HTML('<span>a</span><div>b<span>c</span>d</div>')
+            func('<span>a</span><div>b<span>c</span>d</div>')
         )
         ==
         ['a', 'c']
@@ -120,7 +125,7 @@ def test_extract():
     assert (
         extract(
             css('span') / text,
-            lxml.etree.HTML('<span>a</span><div>b<span>c</span>d</div>')
+            func('<span>a</span><div>b<span>c</span>d</div>')
         )
         ==
         ['a', 'c']
@@ -128,7 +133,7 @@ def test_extract():
     assert (
         extract(
             xpath('//a') / attr('href'),
-            lxml.etree.HTML('<a href="/link"></a>')
+            func('<a href="/link"></a>')
         )
         ==
         ['/link']
@@ -136,7 +141,7 @@ def test_extract():
     assert (
         extract(
             xpath('//ul//a') / attr('href'),
-            lxml.etree.HTML('''
+            func('''
               <a href="/link_a">link a</a>
               <a href="/link_b">link b</a>
               <ul>
@@ -151,7 +156,7 @@ def test_extract():
     assert (
         extract(
             xpath('//li') / (xpath('.//a') @ 'href'),
-            lxml.etree.HTML('''
+            func('''
               <a href="/link_a">link a</a>
               <a href="/link_b">link b</a>
               <ul>
@@ -166,7 +171,7 @@ def test_extract():
     assert (
         extract(
             css('li') / (css('a') @ 'href'),
-            lxml.etree.HTML('''
+            func('''
               <a href="/link_a">link a</a>
               <a href="/link_b">link b</a>
               <ul>
@@ -181,7 +186,7 @@ def test_extract():
     assert (
         extract(
             xpath('//a') / attr('nonexistent'),
-            lxml.etree.HTML('<a href="/link"></a>')
+            func('<a href="/link"></a>')
         )
         ==
         ['']
@@ -189,7 +194,7 @@ def test_extract():
     assert (
         extract(
             xpath('//a') @ 'nonexistent',
-            lxml.etree.HTML('<a href="/link"></a>')
+            func('<a href="/link"></a>')
         )
         ==
         ''
@@ -197,7 +202,7 @@ def test_extract():
     assert (
         extract(
             css('ul a') / attr('href'),
-            lxml.etree.HTML('''
+            func('''
               <a href="/link_a">link a</a>
               <a href="/link_b">link b</a>
               <ul>
@@ -263,11 +268,10 @@ def test_readme_examples():
 ```''', re.DOTALL)
 
     target_html = target_html_pat.search(readme).groups()[0]
-    tree = lxml.etree.HTML(target_html)
     count = 0
     for m in test_pair_pat.finditer(readme):
         count += 1
         expr, expected_json = m.groups()
         expected = json.loads(expected_json)
-        assert extract(parse(expr), tree) == expected
+        assert extract(parse(expr), target_html) == expected
     assert count > 0

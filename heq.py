@@ -75,7 +75,7 @@ if Grammar is not None:
 
     grammar = Grammar(r'''
         s = expr _
-        expr = (selector_lit _ "/")? (dict_lit / dottext / atattr / unary_func / attr_lit)
+        expr = (selector_lit _ "/")? (dict_lit / dottext / atattr / unary_func / attr_lit / selector_lit)
         unary_func = _ ident
         dict_lit = _ "{" ((dict_field_value _ "," _ !"}")* dict_field_value _ ("," _)?)? "}"
         dict_field_value = dict_field _ ":" expr
@@ -204,7 +204,7 @@ def pretty_format_internal(obj, depth=0) -> T.List[str]:
                     result.append('  ' + es[-1])
         return ['{', *result,'}']
     elif isinstance(obj, lxml.etree._Element):
-        return lxml.etree.tostring(obj).decode('utf-8').splitlines()
+        return lxml.etree.tostring(obj, method='html', pretty_print=True, encoding='unicode').splitlines()
     raise TypeError()
 
 def pretty_format(obj):
@@ -237,7 +237,8 @@ def evaluate(expr: Expr):
 def extract(expr: Expr, tree_or_html: T.Union[str, 'lxml.etree._Element']):
     if isinstance(tree_or_html, str):
         import lxml.etree
-        tree = lxml.etree.HTML(tree_or_html)
+        parser = lxml.etree.HTMLParser(remove_blank_text=True)
+        tree = lxml.etree.fromstring(tree_or_html, parser=parser)
     else:
         tree = tree_or_html
     return evaluate(expr)(tree)
@@ -267,8 +268,7 @@ def main():
             html = fp.read().decode('utf-8')
     else:
         html = sys.stdin.read()
-    tree = lxml.etree.HTML(html)
-    out = extract(expr, tree)
+    out = extract(expr, html)
     if args.debug:
         format_func = pretty_format
     else:
