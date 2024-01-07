@@ -1,5 +1,5 @@
 # heq: Yet Another 'jq for HTML'
-**heq** is a command-line tool for extracting structured data as JSON from HTML using concise expressions, akin to `jq`. Additionally, heq serves as a Python library, facilitating the efficient scraping of HTML content through its jq-inspired DSL based on XPath.
+**heq** is a command-line tool for extracting structured data as JSON from HTML using concise expressions, akin to `jq`. Additionally, heq serves as a Python library, facilitating the efficient scraping of HTML content through its jq-inspired DSL based on XPath and CSS selectors.
 
 <!--
 ## Goal and Non-Goals
@@ -17,6 +17,27 @@ heq depends on the following Python packages:
  * parsimonious
 
 ## Usage as a command-line tool
+```
+$ curl -s https://news.ycombinator.com/ | heq '
+$`tr.athing` / {
+    title: `(./td[@class="title"]//a)[1]`.text,
+    link: `(./td[@class="title"]//a)[1]`@href,
+}
+'
+
+[
+  {
+    "title": "Teachable Machine",
+    "link": "https://..."
+  },
+  {
+    "title": "They correctly predicted a Nobel Prize winning discovery. And no one cared [video]",
+    "link": "https://..."
+  },
+  ...
+]
+```
+
 ```console
 $ cat << 'EOF' | heq '$`div.product` / {name: $`h2.name`.text}'
 <body>
@@ -48,11 +69,11 @@ Output:
 
 ```console
 $ cat expr.heq
-`//div[@class="product"]` / {
-    name: `.//h2[@class="name"]`.text,
-    price: `.//p[@class="price"]`.text,
-    features: `.//li` / text,
-    url: `.//a`@href
+$`div.product` / {
+    name: $`.name`.text,
+    price: $`.price`.text,
+    features: $`li` / text,
+    url: $`a`@href
 }
 $ cat << 'EOF' | heq -f expr.heq
 (The same HTML as above)

@@ -168,7 +168,10 @@ def evaluate(expr: Expr):
         elif isinstance(e, sel_text):
             return ''.join(s for t1 in e.sel.select(t) for s in t1.itertext())
         elif isinstance(e, sel_attr):
-            return e.sel.select(t)[0].attrib.get(e.attr, '')
+            selected = e.sel.select(t)
+            if not selected:
+                return ''
+            return selected[0].attrib.get(e.attr, '')
         elif isinstance(e, dict):
             return {k: _evaluate(v, t) for k, v in e.items()}
         elif isinstance(e, unary_func) and e.name == 'text':
