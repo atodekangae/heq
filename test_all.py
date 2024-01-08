@@ -222,6 +222,66 @@ def test_extract(pass_tree):
         ==
         ['/link1', '/link2']
     )
+    assert (
+        extract(
+            xpath('//ul//a')[1]@'href',
+            func('''
+              <a href="/link_a">link a</a>
+              <a href="/link_b">link b</a>
+              <ul>
+                <li><a href="/link1">link 1</a></li>
+                <li><a href="/link2">link 2</a></li>
+              </ul>
+            ''')
+        )
+        ==
+        '/link2'
+    )
+    assert (
+        extract(
+            xpath('//li') / (xpath('.//a')[0] @ 'href'),
+            func('''
+              <a href="/link_a">link a</a>
+              <a href="/link_b">link b</a>
+              <ul>
+                <li><a href="/link1">link 1</a></li>
+                <li><a href="/link2">link 2</a></li>
+              </ul>
+            ''')
+        )
+        ==
+        ['/link1', '/link2']
+    )
+    assert (
+        extract(
+            xpath('//a')[3] @ 'href',
+            func('''
+              <a href="/link_a">link a</a>
+              <a href="/link_b">link b</a>
+              <ul>
+                <li><a href="/link1">link 1</a></li>
+                <li><a href="/link2">link 2</a></li>
+              </ul>
+            ''')
+        )
+        ==
+        '/link2'
+    )
+    assert (
+        extract(
+            css('a')[3] @ 'href',
+            func('''
+              <a href="/link_a">link a</a>
+              <a href="/link_b">link b</a>
+              <ul>
+                <li><a href="/link1">link 1</a></li>
+                <li><a href="/link2">link 2</a></li>
+              </ul>
+            ''')
+        )
+        ==
+        '/link2'
+    )
 
 def test_parse():
     assert parse('`x` / {}') == xpath('x') / {}
@@ -261,6 +321,14 @@ def test_parse():
     assert parse('$`input` / {name: @name}') == css('input') / {'name': attr('name')}
     assert parse('$`input`@name') == css('input') @ 'name'
     assert parse('$`input` @name') == css('input') @ 'name'
+    assert parse('`//input`[0]') == xpath('//input')[0]
+    assert parse('`//input`[5]') == xpath('//input')[5]
+    assert parse('$`input`[0]') == css('input')[0]
+    assert parse('$`input`[7]') == css('input')[7]
+    assert parse('`//input`[5].text') == xpath('//input')[5].text
+    assert parse('$`input`[7].text') == css('input')[7].text
+    assert parse('`//input`[5] @name') == xpath('//input')[5] @ 'name'
+    assert parse('$`input`[7] @name') == css('input')[7] @ 'name'
 
 def test_readme_examples():
     readme = (Path(__file__).parent / 'README.md').read_text()

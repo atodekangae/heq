@@ -25,6 +25,9 @@ class xpath:
     def __matmul__(self, attr):
         return at_attr(self, attr)
 
+    def __getitem__(self, index):
+        return selector_indexed(self, index)
+
     def select(self, tree):
         return tree.xpath(self.xpath)
 
@@ -42,8 +45,26 @@ class css:
     def __matmul__(self, attr):
         return at_attr(self, attr)
 
+    def __getitem__(self, index):
+        return selector_indexed(self, index)
+
     def select(self, tree):
         return tree.cssselect(self.css)
+
+@dataclass(frozen=True)
+class selector_indexed:
+    sel: T.Union[xpath, css]
+    index: int
+
+    @property
+    def text(self):
+        return dot_text(self)
+
+    def __matmul__(self, attr):
+        return at_attr(self, attr)
+
+    def select(self, tree):
+        return self.sel.select(tree)[self.index]
 
 @dataclass(frozen=True)
 class dot_text:
@@ -80,7 +101,8 @@ if Grammar is not None:
         dict_lit = _ "{" ((dict_field_value _ "," _ !"}")* dict_field_value _ ("," _)?)? "}"
         dict_field_value = dict_field _ ":" expr
         dict_field = _ ~r"[_a-zA-Z][_0-9a-zA-Z]*"
-        selector_lit = css_lit / xpath_lit
+        selector_lit = (css_lit / xpath_lit) ("[" int_lit "]")?
+        int_lit = ~r"\d+"
         xpath_lit = _ backtick_lit
         css_lit = _ "$" backtick_lit
         backtick_lit = "`" (~r"[^\\`]+" / "\\`" / "\\\\")+ "`"
@@ -134,8 +156,11 @@ if Grammar is not None:
             return xp @ at.name
 
         def visit_selector_lit(self, node, visited_children):
-            sel, = visited_children
-            return sel
+            (sel,), maybe_index = visited_children
+            if not isinstance(maybe_index, list):
+                return sel
+            (_, index, _), = maybe_index
+            return sel[index]
 
         def visit_xpath_lit(self, node, visited_children):
             *_, lit = visited_children
@@ -151,6 +176,9 @@ if Grammar is not None:
         def visit_ident(self, node, visited_children):
             return node.text
 
+        def visit_int_lit(self, node, visited_children):
+            return int(node.text)
+
         def visit_attr_lit(self, node, visited_children):
             return attr(node.children[-1].text)
 
@@ -165,7 +193,7 @@ def pretty_format_internal(obj, depth=0) -> T.List[str]:
     import lxml.etree
 
     if isinstance(obj, (int, float, str)) or obj is None:
-        return [json.dumps(obj)]
+        return [json.dumps(obj, ensure_ascii=False)]
     elif isinstance(obj, list):
         if len(obj) == 0:
             return ['[]']
@@ -217,13 +245,22 @@ def evaluate(expr: Expr):
         if isinstance(e, map_pred):
             return [_evaluate(e.pred, t1) for t1 in _evaluate(e.expr, t)]
         elif isinstance(e, dot_text):
-            return ''.join(s for t1 in _evaluate(e.expr, t) for s in t1.itertext())
+            selected = _evaluate(e.expr, t)
+            if isinstance(selected, list):
+                elems = selected
+            else:
+                elems = [selected]
+            return ''.join(s for t1 in elems for s in t1.itertext())
         elif isinstance(e, at_attr):
             selected = _evaluate(e.expr, t)
-            if not selected:
-                return ''
-            return selected[0].attrib.get(e.attr, '')
-        elif isinstance(e, (xpath, css)):
+            if isinstance(selected, list):
+                if len(selected) == 0:
+                    return ''
+                elem = selected[0]
+            else:
+                elem = selected
+            return elem.attrib.get(e.attr, '')
+        elif isinstance(e, (xpath, css, selector_indexed)):
             return e.select(t)
         elif isinstance(e, dict):
             return {k: _evaluate(v, t) for k, v in e.items()}
